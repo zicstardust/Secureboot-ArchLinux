@@ -1,14 +1,23 @@
 #!/bin/bash
+if [ -z $1 ]; then
+    store_keys=/usr/share/secureboot/keys
+else
+    store_keys=$1
+fi
 
-#Login root
-sudo su
+#Check if root
+is_root=$(whoami)
+if [ ! $is_root == "root" ]; then
+    echo "run as root"
+    exit 2
+fi
 
-#Create keys
+#Install efitools
 pacman -S efitools
 
 #Local store keys
-mkdir -p /usr/share/secureboot/keys
-cd /usr/share/secureboot/keys
+mkdir -p ${store_keys}
+cd ${store_keys}
 
 #Generate GUID
 uuidgen --random > GUID.txt
@@ -51,88 +60,98 @@ sign-efi-sig-list -g "$(< GUID.txt)" -k KEK.key -c KEK.crt db db.esl db.auth
 
 #Sign bootloader and kernel
 pacman -S sbsigntools
-sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/vmlinuz-linux /boot/vmlinuz-linux
-sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/vmlinuz-linux-lts /boot/vmlinuz-linux-lts
-sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/vmlinuz-linux-zen /boot/vmlinuz-linux-zen
-sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/EFI/systemd/systemd-bootx64.efi /boot/EFI/systemd/systemd-bootx64.efi
-sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/EFI/BOOT/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI
+sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/vmlinuz-linux /boot/vmlinuz-linux
+sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/vmlinuz-linux-lts /boot/vmlinuz-linux-lts
+sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/vmlinuz-linux-zen /boot/vmlinuz-linux-zen
+sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/EFI/systemd/systemd-bootx64.efi /boot/EFI/systemd/systemd-bootx64.efi
+sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/EFI/BOOT/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI
 
 #Pacman Hook
 mkdir -p /etc/pacman.d/hooks
 
-echo "[Trigger]" > /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Operation = Install" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Operation = Upgrade" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Type = Package" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Target = systemd" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "[Action]" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Description = Signing bootd for SecureBoot" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "When = PostTransaction" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Exec = /usr/bin/sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/EFI/systemd/systemd-bootx64.efi /boot/EFI/systemd/systemd-bootx64.efi" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Depends = sbsigntools" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Depends = findutils" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
-echo "Depends = grep" >> /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook
+cat > /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook <<PACMANHOOK
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = systemd
 
-echo "[Trigger]" > /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Operation = Install" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Operation = Upgrade" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Type = Package" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Target = systemd" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "[Action]" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Description = Signing SystemD for SecureBoot" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "When = PostTransaction" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Exec = /usr/bin/sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/EFI/BOOT/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Depends = sbsigntools" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Depends = findutils" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-echo "Depends = grep" >> /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook
-
-echo "[Trigger]" > /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Operation = Install" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Operation = Upgrade" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Type = Package" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Target = linux" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "[Action]" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Description = Signing Kernel for SecureBoot" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "When = PostTransaction" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Exec = /usr/bin/sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/vmlinuz-linux /boot/vmlinuz-linux" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Depends = sbsigntools" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Depends = findutils" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-echo "Depends = grep" >> /etc/pacman.d/hooks/99-secureboot-linux.hook
-
-echo "[Trigger]" > /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Operation = Install" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Operation = Upgrade" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Type = Package" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Target = linux-lts" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "[Action]" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Description = Signing Kernel LTS for SecureBoot" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "When = PostTransaction" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Exec = /usr/bin/sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/vmlinuz-linux-lts /boot/vmlinuz-linux-lts" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Depends = sbsigntools" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Depends = findutils" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
-echo "Depends = grep" >> /etc/pacman.d/hooks/99-secureboot-linux-lts.hook
+[Action]
+Description = Signing bootd for SecureBoot
+When = PostTransaction
+Exec = /usr/bin/sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/EFI/systemd/systemd-bootx64.efi /boot/EFI/systemd/systemd-bootx64.efi
+Depends = sbsigntools
+Depends = findutils
+Depends = grep
+PACMANHOOK
 
 
-echo "[Trigger]" > /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Operation = Install" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Operation = Upgrade" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Type = Package" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Target = linux-zen" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "[Action]" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Description = Signing Kernel ZEN for SecureBoot" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "When = PostTransaction" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Exec = /usr/bin/sbsign --key /usr/share/secureboot/keys/db.key --cert /usr/share/secureboot/keys/db.crt --output /boot/vmlinuz-linux-zen /boot/vmlinuz-linux-zen" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Depends = sbsigntools" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Depends = findutils" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
-echo "Depends = grep" >> /etc/pacman.d/hooks/99-secureboot-linux-zen.hook
+cat > /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook <<PACMANHOOK
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = systemd
+
+[Action]
+Description = Signing SystemD for SecureBoot
+When = PostTransaction
+Exec = /usr/bin/sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/EFI/BOOT/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI
+Depends = sbsigntools
+Depends = findutils
+Depends = grep
+PACMANHOOK
+
+
+cat > /etc/pacman.d/hooks/99-secureboot-linux.hook <<PACMANHOOK
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux
+
+[Action]
+Description = Signing Kernel for SecureBoot
+When = PostTransaction
+Exec = /usr/bin/sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/vmlinuz-linux /boot/vmlinuz-linux
+Depends = sbsigntools
+Depends = findutils
+Depends = grep
+PACMANHOOK
+
+
+cat > /etc/pacman.d/hooks/99-secureboot-linux-lts.hook <<PACMANHOOK
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux-lts
+
+[Action]
+Description = Signing Kernel LTS for SecureBoot
+When = PostTransaction
+Exec = /usr/bin/sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/vmlinuz-linux-lts /boot/vmlinuz-linux-lts
+Depends = sbsigntools
+Depends = findutils
+Depends = grep
+PACMANHOOK
+
+
+cat > /etc/pacman.d/hooks/99-secureboot-linux-zen.hook <<PACMANHOOK
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux-zen
+
+[Action]
+Description = Signing Kernel ZEN for SecureBoot
+When = PostTransaction
+Exec = /usr/bin/sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/vmlinuz-linux-zen /boot/vmlinuz-linux-zen
+Depends = sbsigntools
+Depends = findutils
+Depends = grep
+PACMANHOOK
 
 chmod +x -R /etc/pacman.d/hooks/*
-
-#Copy keys to efi partition so we can enroll them from the UEFI
-cp /usr/share/secureboot/keys/*.cer /usr/share/secureboot/keys/*.esl /usr/share/secureboot/keys/*.auth /boot/EFI
-
+echo "keys stored in ${store_keys}"
