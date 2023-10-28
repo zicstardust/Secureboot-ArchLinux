@@ -67,9 +67,10 @@ sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/EFI
 sbsign --key ${store_keys}/db.key --cert ${store_keys}/db.crt --output /boot/EFI/BOOT/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI
 
 #Pacman Hook
-mkdir -p /etc/pacman.d/hooks
+pacman_hooks=/etc/pacman.d/hooks
+mkdir -p ${pacman_hooks}
 
-cat > /etc/pacman.d/hooks/99-secureboot-linux-bootd.hook <<PACMANHOOK
+cat > ${pacman_hooks}/99-secureboot-linux-bootd.hook <<PACMANHOOK
 [Trigger]
 Operation = Install
 Operation = Upgrade
@@ -86,7 +87,7 @@ Depends = grep
 PACMANHOOK
 
 
-cat > /etc/pacman.d/hooks/99-secureboot-linux-systemd.hook <<PACMANHOOK
+cat > ${pacman_hooks}/99-secureboot-linux-systemd.hook <<PACMANHOOK
 [Trigger]
 Operation = Install
 Operation = Upgrade
@@ -103,7 +104,7 @@ Depends = grep
 PACMANHOOK
 
 
-cat > /etc/pacman.d/hooks/99-secureboot-linux.hook <<PACMANHOOK
+cat > ${pacman_hooks}/99-secureboot-linux.hook <<PACMANHOOK
 [Trigger]
 Operation = Install
 Operation = Upgrade
@@ -120,7 +121,7 @@ Depends = grep
 PACMANHOOK
 
 
-cat > /etc/pacman.d/hooks/99-secureboot-linux-lts.hook <<PACMANHOOK
+cat > ${pacman_hooks}/99-secureboot-linux-lts.hook <<PACMANHOOK
 [Trigger]
 Operation = Install
 Operation = Upgrade
@@ -137,7 +138,7 @@ Depends = grep
 PACMANHOOK
 
 
-cat > /etc/pacman.d/hooks/99-secureboot-linux-zen.hook <<PACMANHOOK
+cat > ${pacman_hooks}/99-secureboot-linux-zen.hook <<PACMANHOOK
 [Trigger]
 Operation = Install
 Operation = Upgrade
@@ -153,5 +154,5 @@ Depends = findutils
 Depends = grep
 PACMANHOOK
 
-chmod +x -R /etc/pacman.d/hooks/*
+chmod +x -R ${pacman_hooks}/*
 echo "keys stored in ${store_keys}"
